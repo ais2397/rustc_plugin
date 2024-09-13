@@ -6,13 +6,18 @@ extern crate rustc_driver;
 extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_session;
+extern crate rustc_hir;
+extern crate rustc_span;
+
+pub mod gen_map;
 
 use std::{borrow::Cow, env, process::Command};
-
 use clap::Parser;
 use rustc_middle::ty::TyCtxt;
 use rustc_plugin::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
+
+use gen_map::CFuncVisitor;
 
 // This struct is the plugin provided to the rustc_plugin framework,
 // and it must be exported for use by the CLI/driver binaries.
@@ -62,6 +67,7 @@ impl RustcPlugin for PrintAllItemsPlugin {
     plugin_args: Self::Args,
   ) -> rustc_interface::interface::Result<()> {
     let mut callbacks = PrintAllItemsCallbacks { args: plugin_args };
+    //disable the lints like #[deny(dead_code)] #deny(unused_imports) #deny(warnings)
     let compiler = rustc_driver::RunCompiler::new(&compiler_args, &mut callbacks);
     compiler.run()
   }
@@ -71,7 +77,9 @@ struct PrintAllItemsCallbacks {
   args: PrintAllItemsPluginArgs,
 }
 
+
 impl rustc_driver::Callbacks for PrintAllItemsCallbacks {
+
   // At the top-level, the Rustc API uses an event-based interface for
   // accessing the compiler at different stages of compilation. In this callback,
   // all the type-checking has completed.
@@ -82,11 +90,12 @@ impl rustc_driver::Callbacks for PrintAllItemsCallbacks {
   ) -> rustc_driver::Compilation {
     // We extract a key data structure, the `TyCtxt`, which is all we need
     // for our simple task of printing out item names.
-    queries
+    /*queries
       .global_ctxt()
       .unwrap()
-      .enter(|tcx| print_all_items(tcx, &self.args));
-
+      .enter(|tcx| print_all_items(tcx, &self.args));*/
+    /*get the hir tree */
+    queries.global_ctxt().unwrap().enter(|tcx| create_func_map(tcx));
     // Note that you should generally allow compilation to continue. If
     // your plugin is being invoked on a dependency, then you need to ensure
     // the dependency is type-checked (its .rmeta file is emitted into target/)
@@ -112,4 +121,12 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
     }
     println!("{msg}");
   }
+}
+
+fn create_func_map(tcx: TyCtxt) {
+ /*get the hir tree, I need to capture the */
+//get to know whether this is a sys crate or wrapper crate
+let mut visitor = CFuncVisitor::new(tcx);
+println!("Visiting all item likes in crate");
+tcx.hir().visit_all_item_likes_in_crate(&mut visitor);
 }

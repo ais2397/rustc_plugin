@@ -8,6 +8,7 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_hir;
 extern crate rustc_span;
+extern crate rustc_data_structures;
 
 pub mod gen_map;
 
@@ -17,7 +18,8 @@ use rustc_middle::ty::TyCtxt;
 use rustc_plugin::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
 
-use gen_map::CFuncVisitor;
+use gen_map::CForeignFnCollector;
+use gen_map::FnDeclTypeResolver;
 
 // This struct is the plugin provided to the rustc_plugin framework,
 // and it must be exported for use by the CLI/driver binaries.
@@ -126,7 +128,12 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
 fn create_func_map(tcx: TyCtxt) {
  /*get the hir tree, I need to capture the */
 //get to know whether this is a sys crate or wrapper crate
-let mut visitor = CFuncVisitor::new(tcx);
+let mut foreign_fn_collector = CForeignFnCollector::new(tcx);
 println!("Visiting all item likes in crate");
-tcx.hir().visit_all_item_likes_in_crate(&mut visitor);
+foreign_fn_collector.collect_foreign_fns();
+
+let mut type_resolver = FnDeclTypeResolver::new(tcx, foreign_fn_collector.foreign_fn_map);
+type_resolver.resolve_types();
+
+
 }
